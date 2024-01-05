@@ -1,0 +1,1344 @@
+---
+title: "Statistical methods for omics data analysis"
+subtitle:  <span style="color:black"> Viral report </span>
+author: "Marina Vilardell"
+date: "2022-11-30"
+output:
+  html_document:
+    highlight: haddock
+    theme: readable
+    toc: yes
+    toc_depth: 2
+    toc_float: no
+---
+
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 18px;
+      color: Black;
+      font-family: Calibri, Helvetica, sans-serif;
+      text-align: justify;
+  }
+
+td {  /* Table  */
+  font-size: 18px;
+}
+h1.title {
+  font-size: 40px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 30px;
+  color: DarkRed;
+}
+h2 { /* Header 2 */
+    font-size: 24px;
+  color: DarkRed;
+}
+
+code.r{ /* Code block */
+    font-size: 16px;
+}
+
+</style>
+
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+
+# Introduction
+
+Diarrhea is one of the most commonly reported intestinal disorder worldwide, that can cause different kind of symptoms with more, or less intensity. Acute diarrhea can be caused by various infectious etiologies (among other factors), which include viruses, bacteria and parasites (less frequent). 
+The aim of this report is to study and identify a biomarker signature in order to distinguish viral infected patients from bacterial ones. 
+
+```{r}
+#Define the working directory
+setwd("~/MASTER/BIOINFORMATICS/STATISTICS")
+
+#Load data
+viraldata<-read.table(file='viral.28.txt',header=T)
+
+#Dimension of our data
+dim(viraldata)
+
+
+```
+The data collected for this report corresponds to a follow-up study of 140 patients, from whom the gene expression of 50 genes has been obtained, as well as clinical information, including age, gender, ancestry, time with symptoms, and an indicator of hospitalization, infection and symptoms. 
+
+
+# 1. Univariate descriptive analysis
+
+**Describe the main characteristics of the dataset: perform a univariate descriptive analysis of the first 6 variable.**
+
+First of all, it is checked what type of data is in the data frame. The 6 variables of interest are selected. 
+```{r}
+str(viraldata[,1:6])
+```
+There are numerical and integers variables. Those categorical variables (0 and 1 values), have to be transformed into factors:
+```{r}
+viraldata$infection<-factor(viraldata$infection, levels=c(0,1),labels=c('bacterial infection','viral infection'))
+viraldata$sind<-factor(viraldata$sind,levels = c(0,1),labels=c('symptoms remain','symptoms finished'))
+viraldata$gender<-factor(viraldata$gender,levels = c(0,1),labels=c('female','male'))
+viraldata$hosp<-factor(viraldata$hosp,levels = c(1,0),labels=c('hospitalization','no hospitalization'))
+
+```
+
+Check again the type of data to ensure we have correctly transform integer data into factor with their specific levels:
+```{r}
+str(viraldata[,1:6])
+```
+Once this is done, the univariate descriptive analysis can be performed.
+
+
+## 1.1 Categorical data
+
+4 of the 6 first variables are categorical: Infection, Sind(indicator of symptoms), Gender, and hosp(indicator of hospitalization).
+Next, it is presented their respective frequency tables and a graphical representation of them (see Figure 1).
+
+<span style="color:darkred"> - Infection:</span>
+```{r}
+#Libraries needed
+library(ggpubr)
+library(kableExtra)
+
+# Table of relative and absolute frequencies
+infection_abs_freq<-table(viraldata$infection) #Absolute frequency
+infection_rel_freq<-prop.table(infection_abs_freq) #relative frequency
+freqtable_infection<-cbind(infection_abs_freq,infection_rel_freq) #Combine it
+colnames(freqtable_infection)<-c('Absolute frequency','Relative frequency') #Change the column names
+kable_infection<-kable(freqtable_infection, caption = ' Table 1. Frequencies of infection')%>%kable_styling(bootstrap_options = c('responsive'),full_width = F, html_font = "Cambria",position = 'left')%>%
+  row_spec(0, color = "black", background = "gainsboro") 
+kable_infection
+```
+Infection data is equal distributed in each kind of infection, so in this study there is the same amount of bacterial and viral infected patients, concretely 70 (see Figure 1.a for a graphical representation).
+
+<span style="color:darkred"> - Sind (indicator of symptoms):</span>
+
+```{r}
+# Table of relative and absolute frequencies
+sind_abs_freq<-table(viraldata$sind)
+sind_rel_freq<-prop.table(sind_abs_freq)
+freqtable_sind<-cbind(sind_abs_freq,sind_rel_freq)
+
+colnames(freqtable_sind)<-c('Absolute frequency','Relative frequency')
+kable_sind<-kable(round(freqtable_sind,2), caption = ' Table 2. Frequencies of symptoms indicator (Sind)')%>%kable_styling(bootstrap_options = c('responsive'),full_width = F, html_font = "Cambria",position='left')%>%
+  row_spec(0, color = "black", background = "gainsboro")
+kable_sind
+```
+There are more patients that have still symptoms than patients that have no longer symptoms. Around 66% of the patients remain with symptoms and 34% of them finished with the symptoms. Relative frequencies are represented in figure 1.b.
+
+<span style="color:darkred"> - Gender:</span>
+
+```{r}
+# Table of relative and absolute frequencies
+gender_abs_freq<-table(viraldata$gender)
+gender_rel_freq<-round(prop.table(gender_abs_freq),2)
+freqtable_gender<-cbind(gender_abs_freq,gender_rel_freq)
+
+colnames(freqtable_gender)<-c('Absolute frequency','Relative frequency')
+kable_gender<-kable(freqtable_gender, caption = ' Table 3. Frequencies of gender')%>%kable_styling(bootstrap_options = c('responsive'),full_width = F,position = 'left', html_font = "Cambria")%>%
+  row_spec(0, color = "black", background = "gainsboro")
+kable_gender
+```
+More males where included in the studies than females. 56% of the patients were men and 44% were women (see figure 1.c for a graphical representation of relative frequencies).
+
+<span style="color:darkred"> - Hospitalization:</span>
+
+```{r}
+# Table of relative and absolute frequencies
+hosp_abs_freq<-table(viraldata$hosp)
+hosp_rel_freq<-prop.table(hosp_abs_freq)
+freqtable_hosp<-cbind(hosp_abs_freq,hosp_rel_freq)
+
+colnames(freqtable_hosp)<-c('Absolute frequency','Relative frequency')
+kable_hosp<-kable(round(freqtable_hosp,2), caption = ' Table 4. Frequencies of Hospitaliation requirement')%>%kable_styling(bootstrap_options = c('responsive'),full_width = F, html_font = "Cambria",position='left')%>%
+  row_spec(0, color = "black", background = "gainsboro")
+kable_hosp
+```
+54% of patients required hospitalization whereas 45% didn't (see figure 1.d).
+
+Except the variable which explain the indicator of symptoms, the others have an equal or similar percentatge of relative frequencies, so we cannot say there is a group of infection/gender/hospitalization that mostly represents the data. 
+
+<span style="color:darkred"> - Barplots:</span>
+
+```{r}
+#Infection plot
+plot_inf<-ggbarplot(data.frame(infection_rel_freq),x='Var1',y='Freq',xlab='Kind of infection',
+          ylab='Relative frequency',lab.nb.digits = 2, label = T, title = ' Figure 1. Representation of relatives frequencies',
+          fill='Var1',legend='none',palette = c('skyblue1','royalblue3'),ylim=c(0,0.7),subtitle='A) Infection')
+
+#Sind plot
+plot_sind<-ggbarplot(data.frame(sind_rel_freq),x='Var1',y='Freq',xlab=' ',
+          ylab='Relative frequency',lab.nb.digits = 2, label = T, subtitle = 'B) Sind(symptoms)',
+          fill='Var1',legend='none',palette = c('lemonchiffon1','gold1'),ylim=c(0,0.7))
+
+#Gender plot
+plot_gender<-ggbarplot(data.frame(gender_rel_freq),x='Var1',y='Freq',xlab='Gender',
+          ylab='Relative frequency',lab.nb.digits = 2, label = T, subtitle = 'C) Gender',
+          fill='Var1',legend='none',palette = c('darkolivegreen1','limegreen'),ylim=c(0,0.7))
+
+#Hosp plot
+plot_hosp<-ggbarplot(data.frame(hosp_rel_freq),x='Var1',y='Freq',xlab=' ',
+          ylab='Relative frequency',lab.nb.digits = 2,ylim=c(0,0.7),label = T, subtitle = 'D) Hospitalization',
+          fill='Var1',legend='none',palette = c('pink1','indianred1'))
+
+
+ggarrange(plot_inf,plot_sind,plot_gender,plot_hosp,ncol=2,nrow=2)
+
+```
+
+
+
+## 1.2 Quantitative data
+
+Only 2 variables are numerical/continuous: Age and Stime (time with symptoms in days). In the next table, an statistical summary is provided for both variables. 
+
+```{r}
+#Statistical summary of stime variable
+stime_sum<-t(as.array(summary(viraldata$stime))) #Transpose the summary
+rownames(stime_sum)<-'Stime'
+sd_dev<-sd(viraldata$stime) #standard deviation
+IQR<-IQR(viraldata$stime)#Interquartilic range
+stime_<-cbind(stime_sum,sd_dev,IQR) #Combine it
+
+#Statistical summary of age variable
+age_sum<-t(as.array(summary(viraldata$age)))
+rownames(age_sum)<-'Age'
+sd_age<-sd(viraldata$age)
+IQR_age<-IQR(viraldata$age)
+sage_<-cbind(age_sum,sd_age,IQR_age)
+
+summ_age_stime<-round(rbind(stime_,sage_),3)
+kable(summ_age_stime, caption = ' Table 5. Numerical summary of continuous variables')%>%kable_styling(bootstrap_options = c('responsive'),full_width = F, html_font = "Cambria")%>%row_spec(0, color = "black", background = "moccasin") 
+  
+```
+The mean of time with symptoms is around a week, with a maximum of 17 days an a half. From 25% to 75% of patients have been between almost 5 and 10 days with symptoms. So, data is concentrated in this range. 50% of patients have had symptoms below a week (median).
+Regarding age, the mean is 44,25 years. From 25% to 75% of patients are between 41 and 49 years old, so data is concentrated in this 8-year range. 
+Below, it is drawn a graphical representation of stime and age. The dashed line in Figure 2.A and 3.A represents the mean value and it is added the density line. 
+```{r}
+hist_stime<-gghistogram(viraldata, x='stime',
+                  add='mean', fill='#FF6347', color='black',bins=15,title='Figure 2.Time with symptoms',subtitle='A) Histogram',
+                  add_density = T,xlab='Time with symptoms (days)')
+
+box_stime<-ggboxplot(viraldata, y='stime',ylab='Time with symptoms(days)',fill='salmon',subtitle='B) Boxplot ',
+                add='jitter')+theme(axis.title.x=element_blank(),axis.text.x=element_blank(),axis.ticks.x=element_blank())
+
+ggarrange(hist_stime,box_stime)
+```
+
+The histogram (Figure 2.A) represents the distribution of the variable stime. Most of the patients had symptoms between 5 and 11-12 days, and few had symptoms more than 12 days approximately. So, the interquartile range is clearly defined and seen in the boxplot (Figure 2.B), which takes a value of around 5. Taking into account the following formula to detect extreme values, it can be affirm that there are no outliers in this variable.  
+Formula: x > Q3 + 1,5 x IQR
+         x < Q1 - 1,5 x IQR
+         
+```{r}
+Q3<-10.057
+length(which(viraldata$stime>Q3+1.5*IQR))
+```
+
+```{r}
+hist<-gghistogram(viraldata, x='age',
+            add='mean', fill='#E7B800', color='black',bins=25,title='Figure 3. Age',subtitle='A) Histogram',
+            add_density = T,xlab='Age')
+
+
+boxp<-ggboxplot(viraldata, y='age',ylab='Age',fill='lightgoldenrod',subtitle='B) Boxplot ',
+          add='jitter')+theme(axis.title.x=element_blank(),axis.text.x=element_blank(),axis.ticks.x=element_blank())
+
+ggarrange(hist,boxp)
+```
+
+In this figure, it is shown age distribution. 
+It is seen that most of patients are between 40 and 51 years old, and there are few patients under 35. In boxplot (Figure 3.B), it can be clearly appreciated and extreme value at the bottom of the graphic.
+
+```{r}
+Q1<-41
+viraldata$age[which(viraldata$age<Q1-1.5*IQR_age)]
+```
+Considering the formula described above to detect outliers, it can be affirmed that the age value of 26 is an outlier. 
+
+
+
+
+# 2. Clustering analysis of gene expression
+
+**Perform hierarchical clustering of (scaled) gene expression levels and explore possible relationships between genes. How many gene clusters are observed?**
+
+First of all, gene expression levels have to be normalized in order to begin with the clustering process.
+
+```{r}
+genes<-viraldata[,8:57] #get gene expression values
+genes_scaled<-scale(genes)
+```
+To ensure the function has scaled the values properly, the mean should be 0 and the standard deviation 1. It is checked this (it is only shown the first 6 observations):
+
+```{r}
+head(apply(genes_scaled,2,mean))
+head(apply(genes_scaled,2,sd))
+```
+All values mean is practically 0, and its deviation 1. So, gene expression levels are correctly scaled.
+
+Then, it is started by calculating the distance between every pair of genes in a distance matrix. We will use the euclidean distance method.
+```{r}
+genes_in_rows<-t(genes_scaled) #We need the genes in rows, so we transpose the matrix.
+dist_genes<-dist(genes_in_rows,method='euclidian')
+distmat_genes<-as.matrix(dist_genes)#contains the distance for each pair of genes.
+```
+
+For the hierarchical clustering, it is proceed with the average linkage method:
+```{r}
+hcgenes<-hclust(dist_genes,method = 'average')
+
+library(factoextra)#library to construct the plot
+fviz_dend(hcgenes, cex = 0.75, 
+          main = "Figure 4. Hierarchical clustering Dendrogram ",
+          xlab='Gene Name',ylab = "Distance", sub = "",
+          k=2, k_colors = c('#00AFBB','#FF6A48'),
+          color_labels_by_k = TRUE,lwd=0.8)+
+  geom_hline(yintercept = 17, linetype = "dashed")
+
+```
+
+A threshold of 17 is defined in order to create the number of clusters. In this case, and with this specific threshold, 2 clusters can be clearly observed in Figure 4. However, if the threshold is defined at 16, 4 clusters are obtained (see Figure 5).
+
+```{r}
+fviz_dend(hcgenes, cex = 0.75, 
+          main = "Figure 5. Hierarchical clustering Dendrogram ",
+          xlab='Gene Name',ylab = "Distance", sub = "",
+          k=4,
+          color_labels_by_k = TRUE,lwd=0.8)+
+  geom_hline(yintercept = 16, linetype = "dashed")
+```
+
+So, it is difficult to determine the exact real number of clusters, and the biological implications of each gene should be studied to see in which pathway they act (to determine whether two genes are similar or not), thus, to get closer to the real number of clusters. 
+
+**POSSIBLE RELATIONSHIPS BETWEEN GENES:**
+
+In figure 5, cluster 1 (colored by purple), genes RUNDC1 and SLC2A3 seem to be the most associated genes, as the distance between them is shorter compared to other genes. Next, it is visualized the pairwise correlation between cluster 1 genes to determine the degree of correlation.
+
+```{r}
+library(GGally)
+cut_avg <- cutree(hcgenes, k = 4) #indicate each gene in which cluster is classified
+cl1<-rownames(data.frame(cut_avg[which(cut_avg==1)])) #select the genes corresponding to cluster 1
+ggcorr(viraldata[cl1], nbreaks=8, palette='RdGy', label=TRUE, label_size=5, label_color='white')
+```
+
+It is clearly seen that genes RUNDC1 and SLC2A3 are strongly associated, as the degree of correlation is 0.9 and the distance between them is short (Figure 5).
+
+The same for genes GPR180 and Contig63649_RC in cluster 2 (colored by green). Next, it is visualized and analysed in more detail the correlation of this two genes:
+
+```{r}
+library("PerformanceAnalytics")
+c<-c('GPR180','Contig63649_RC')
+chart.Correlation(viraldata[c], histogram=TRUE, pch=19)
+
+```
+
+In the chart, it can be observed the distribution of the two genes data, the correlation plot (in which it is seen clearly a positive correlation), and the degree of correlation, which is 0.89. Hence, the distance between this two genes represented in the hierarchical clustering dendogram (Figure 5) is short, meaning that the genes GPR180 and Contig63649_RC are very similar or involved in a same biological pathway. 
+
+On the contrary, for instance, gene DLT of cluster 1 and gene MELK of cluster 2, are far from each other, hence there is not a relationship between them. Moreover, the degree of correlation that is -0.13, and the correlation graphic affirm the null association between them.
+
+```{r}
+c<-c('DTL','MELK')
+library(psych)
+pairs.panels(viraldata[c], scale=TRUE)
+```
+
+And finally, in Figure 5, RAB6B gene is a single-cluster, so this gene is different from all others genes, and genes in cluster 3, colored by blue (OXCT1,SCUBE2,TSPYL5 and STK32B), are in the same cluster, so they may have similar characteristics or act in a similar pathway.  
+
+
+# 3. Clustering analysis of individuals
+
+**Perform hierarchical clustering of individuals according to their (scaled) gene expression levels and explore possible relationships between them. How many clusters of individuals are observed? Check visually whether the clustering is related to infection, gender, hospitalization or ancestry.**
+
+To build the cluster, the distance matrix between individuals is calculated first. We will use the euclidean distance method.
+```{r}
+dist_individuals<-dist(genes_scaled,method = 'euclidian')
+distmat_indiv<-as.matrix(dist_individuals)
+```
+Then, the hierarchical clustering is provided, by using the average linkage method (for cluster distances):
+
+```{r}
+hcindividuals<-hclust(dist_individuals,method = 'average')
+
+fviz_dend(hcindividuals, cex = 0.75, 
+          main = "Figure 6. Hierarchical clustering Dendrogram ",
+          xlab='Individual number',ylab = "Distance", sub = "",
+          k=9,
+          color_labels_by_k = TRUE,lwd=0.8)+
+  geom_hline(yintercept = 11.5, linetype = "dashed")
+
+```
+
+Again, it is difficult to determine the exact number of clusters. By defining a threshold of 11, it is obtained 9 clusters of individuals, as shown in Figure 6. However, if the threshold line changes, it will be obtained a different number of clusters. 
+In this case, the large amount of individuals makes it complicated to clearly visualize the hierarchical dendogram and to determine which patients are more similar according to the genes expressed. For this reason, it will be studied the relationship of a reduced number of individuals.
+
+**POSSIBLE RELATIONSHIPS BETWEEN INDIVIDUALS:**
+
+As shown in Figure 6, the individuals with the shortest distance will be the more associated ones. As it is not possible to see directly the identification number of the individuals, it is selected a range of individuals to find those with the highest relationship. In this case, individuals from 30 to 46 are selected:
+```{r}
+library(corrplot)
+
+a<-t(viraldata)[8:57,] #select gene expression levels for each individual and transpose, to have the individuals in the columns in order to make correlation graphics between individuals. 
+
+a<-data.frame(a)
+head(sapply(a,class)) #data is a character, and we want numeric data
+
+chars <- sapply(a, is.character) #select the columns that are character
+a[ , chars] <- as.data.frame(apply(a[ , chars], 2, as.numeric)) #transform to numeric data
+colnames(a)<-rownames(viraldata)
+
+corrplot.mixed(cor(a[30:46]), order="hclust", tl.col="black")
+```
+
+Now it is seen that individuals 44-46 are the most associated ones, followed by 31-32 individuals. To get a more informative plot: 
+```{r}
+c<-c('44','46','31','32')
+chart.Correlation(a[c], histogram=TRUE, pch=19)
+```
+
+This plot shows the degree of correlation between the individuals previously selected, and the correlation plot of each of them. Now, it is clearly seen that the degree of correlation between 44 and 46 individuals is the highest one (0.87), so this are the strongest associated individuals, followed by the individuals 31 and 32 with a degree of correlation of 0.79.
+
+
+We can also study the relationship of the individuals in a same cluster to verify if they are actually similar to each other. The cluster colored by blue (Figure 6) is selected. 
+
+```{r}
+cut_avg <- cutree(hcindividuals, k = 9) #each individual in which cluster is classified, considering a total of 9 clusters.
+x<-data.frame(which(cut_avg==2)) #create a data frame with only the individuals of a cluster selected. 
+
+colnames(x)<-'IND'
+z<-x$IND #vector with the number of each individual of the cluster selected
+
+#cl1<-rownames(data.frame(cut_avg[which(cut_avg==2)]))
+
+ggcorr(a[z], nbreaks=6, palette='RdGy', label=TRUE, label_size=5, label_color='white') #pairwaise correlation
+```
+
+As the correlation plot shows, most of individuals are highly associated (with a degrre of correlation over 0.67) to other individuals of the same cluster. So, the algorithm is really grouping individuals together well. 
+
+
+
+**Check visually whether the clustering is related to infection, gender, hospitalization or ancestry:**
+
+Is is analysed if the classification is related with some characteristics of the individuals.
+
+<span style="color:darkred"> - INFECTION:</span>
+
+The figure 7 evaluates if the classification of the cluster is related with the 2 types of infection (V, for viral infection; *, for bacterial infection).
+
+```{r}
+infection_type<-factor(viraldata$infection,labels=c('*','V')) #change the labels of the infection variable to make it easy to visualize. 
+hcindividuals$labels=infection_type #change the labels of the hclust object 
+fviz_dend(hcindividuals, cex = 0.75, 
+          main = "Figure 7. Cluster Dendrogram associated to infection ",
+          xlab='Individual number',ylab = "Distance", sub = "",lwd=0.8, k=9, color_labels_by_k = TRUE)
+```
+
+The gene expression levels do not provide a classification according to the type of infection, because bacterial and viral infected patients are mixed in the clusters. What is true is that, most of the patients that are classified in the cluster colored by blue, are viral patients. So, there is not a perfect classification, but if an individual is classified in this cluster is more likely to be a viral infected patient, but in general the cluster classification is not due to the type of infection, we do not have groups of clusters clearly separated.  
+
+<span style="color:darkred"> - GENDER:</span>
+
+The figure 8 evaluates if the classification of the cluster is related with the 2 kinds of gender (M, for male; *, for female).
+
+```{r}
+kind_gender<-factor(viraldata$gender,labels=c('*','Male')) #change the labels of the infection variable to make it easy to visualize. 
+hcindividuals$labels=kind_gender #change the labels of the hclust object 
+fviz_dend(hcindividuals, cex = 0.75, 
+          main = "Figure 8. Cluster Dendrogram associated to gender ",
+          xlab='Individual number',ylab = "Distance", sub = "",lwd=0.8, k=9, color_labels_by_k = TRUE)
+```
+
+It is clearly seen that gene expression levels do not provide a classification according to the gender of the patient. 
+
+
+<span style="color:darkred"> - ANCESTRY:</span>
+
+The figure 9 evaluates if the classification of the cluster is related with the 3 types of ancestry (A, B or C).
+
+```{r}
+type_ancestry<-factor(viraldata$ancestry,labels=c('A','B','c'))
+hcindividuals$labels=type_ancestry #change the labels of the hclust object 
+fviz_dend(hcindividuals, cex = 0.75, 
+          main = "Figure 9. Cluster Dendrogram associated to ancestry ",
+          xlab='Individual number',ylab = "Distance", sub = "",lwd=0.8, k=9, color_labels_by_k = TRUE)
+```
+
+It is seen that gene expression levels do not provide a classification according to the type of ancestry.
+
+<span style="color:darkred"> - HOSPITALIZATION:</span>
+
+The figure 10 evaluates if the classification of the cluster is related with the fact of requiring hospitaliztion or not (NO, for no hospitalization; *, hospitalization).
+
+```{r}
+hosp_condition<-factor(viraldata$hosp,labels=c('NO','*'))
+hcindividuals$labels=hosp_condition #change the labels of the hclust object 
+fviz_dend(hcindividuals, cex = 0.75, 
+          main = "Figure 10. Cluster Dendrogram associated to hospitalization ",
+          xlab='Individual number',ylab = "Distance", sub = "",lwd=0.8, k=9, color_labels_by_k = TRUE)
+```
+
+It is clearly seen that gene expression levels do not provide a classification according to the fact of being hospitalized.
+
+As a conclusion, none of the characteristics of the individuals is related to the cluster classification. 
+
+
+# 4. K-means
+
+**Perform K-means clustering with k=2 and test whether the clustering is associated to (a) the kind of infection and (b) the risk of hospitalization. Interpret the results.**
+
+The k means clustering of individuals is performed with 2 clusters:
+```{r}
+k<-2 
+kmeans<-kmeans(genes_scaled,k) #dataset(individuals in the rows and genes scaled) and number of clusters.
+kmeans
+```
+The results of the function Kmeans are the following: 
+
+- Cluster means: Returns the cluster means for each gene. So, the individuals grouped in the first cluster have an expression level mean of -0.659 and -0.024 for the genes AYTL2 and TGFB3 respectively, whereas the individuals grouped in the second cluster have an expression level mean of 0.55 and 0.02 for the same genes, and so on with all the other genes...
+
+- Clustering Vector: Indicates in which cluster is classified each individual. In this case, the individual 1 is classified in the first cluster, whereas the 2 and 3 individuals are classified in the second cluster. 
+
+- This classification explains 17.4% of the total variability.
+
+As it is a good idea to plot the results to asses and compare the cluster analyses, the following figure shows the graphic representation of data for the first two genes. The bigger circle and triangle represent the mean of the cluster. 
+```{r}
+
+data2<-data.frame(genes_scaled)
+data2$cluster<-kmeans$cluster
+data2$cluster<-as.factor(data2$cluster)
+
+ggscatter(data2, x='AYTL2',y='TGFB3',color='cluster', title='Figure 11. k-means cluster plot ', mean.point = TRUE,mean.point.size = 7, shape='cluster') #the color is defined as the classification of the individuals in the cluster. 
+
+```
+
+Although the centers are quite separated (which means the mean gene expression of the two groups of clusters are a bit separated), there is not an optimal separation, because some individuals of different clusters overlap each other in some points. So, the cluster classification not depends on the gene expression of this 2 variables used to represent data (AYTL2 and TGFB3).  
+The problem when visualizing the data is that it contains more than 2 variables (more than 2 genes, in this case) and it is difficult to know which variables to choose for the x and y axis of the scatter plot. The way to deal with this problem is to reduce the number of dimensions of the data by applying the Principal Component Analysis (PCA), that will create two new variables (which explain the majority of the variance of the data), and which can be used for the plot (see Section 5).
+
+
+**Test whether the clustering is associated to (a) the kind of infection and (b) the risk of hospitalization.**
+
+- A.Kind of infection:
+```{r}
+kable(table(viraldata$infection,kmeans$cluster), caption = 'Table 6. Cluster-Infection')%>%kable_classic(full_width=F,position='left')%>%row_spec(0, background = 'gainsboro')
+```
+
+This table summaries the amount of individuals for each infection and cluster. So, there are 18 patients classified in cluster 1 associated to a bacterial infection, and 46 associated to a viral infection. In contrast, in cluster 2, there are 52 patients associated to bacterial infection, and 24 to viral. 
+
+In the following figure, it can be visualized the proportion of individuals related to the kind of infection in each cluster.
+
+```{r}
+cluster_infection<-prop.table(table(viraldata$infection,kmeans$cluster),2)
+c_i<-data.frame(round(cluster_infection,3))
+colnames(c_i)<-c('Infection','Cluster','Frequency')
+ggbarplot(c_i,x='Cluster',y='Frequency',fill='Infection',label=T,legend='right',title='Figure 12. ',palette = get_palette(palette='Dark2',2))
+```
+
+It seems that there is a relation between the cluster classification and the type of infection, as it is seen that 71% of patients grouped in cluster 1 are viral infected and the infection type that dominates in cluster 2 is the bacterial one. To reach a conclusion based on statistical evidences, the chi-squared test is performed.
+
+-H0: Cluster classification and infection are independent
+
+-H1: Cluster classification and infection are associated
+
+```{r}
+chisq.test(table(viraldata$infection,kmeans$cluster))
+```
+
+P-value is less than 0.05. There are enough evidences to reject the null hypothesis, so the alternative hypothesis is considered to be proved, and the cluster classification is related to the type of infection. Cluster 1 grouped individuals are more likely to be viral infected, and cluster 2 individuals have more risk to have a bacterial infection. 
+
+
+
+- B.Risk of hospitalization: 
+
+This table summaries the amount of individuals that have required hospitalization for each cluster.
+```{r}
+kable(table(viraldata$hosp,kmeans$cluster), caption = 'Table 7. Cluster-HOSP')%>%kable_classic(full_width=F,position='left')%>%row_spec(0, background = 'gainsboro')
+```
+
+In the following figure, it can be visualized the proportion of individuals that have required hospitalization and not, for each cluster. 
+
+```{r}
+cluster_h<-prop.table(table(viraldata$hosp,kmeans$cluster),2)
+c_h<-data.frame(round(cluster_h,3))
+colnames(c_h)<-c('Condition','Cluster','Proportion')
+ggbarplot(c_h,x='Cluster',y='Proportion',fill='Condition',label=T,legend='right',title='Figure 13.',palette = get_palette(palette='Dark2',2))
+```
+
+It seems that there is not a relationship between the cluster classification and the risk of being hospitalized, because its proportions are very similar for each cluster. Despite this fact, to reach a conclusion based on statistical evidences, the chi-squared test is performed.
+
+-Cluster classification and the risk of being hospitalized are independent
+
+-Cluster classification and the risk of being hospitalized are associated
+
+```{r}
+chisq.test(table(viraldata$hosp,kmeans$cluster))
+```
+
+As the p-value is grater than 0.05, that means there are not enough statistical evidences to reject the null hypothesis, and the experiment is inconclusive, it is not proved that the cluster classification and the risk of being hospitalized are independent.
+
+
+# 5. PCA
+
+**Perform PCA for exploring possible relationships between individuals according to their (scaled) gene expression levels. Provide the variance explained plot. How much variability is explained by the first two principal components? Which is the eigen-value of PC1 and how can be interpreted? Check, using concentration ellipses, whether PCA projections of individuals are associated to infection, gender, hospitalization or ancestry. Which are the 10 genes that most contribute to PC1 and PC2? ** 
+
+As we have 50 variables (genes), we will obtain 50 principal components, and the first will be the one that explain the most variability of our data. 
+
+```{r}
+#PCA
+pcdata<-prcomp(genes_scaled)
+summary(pcdata) 
+
+```
+
+This summary provides the proportion of variance explained by each variable. In this case, the first principal component explains 25.2% of variability, and the second one, 8.7%. In total, both of them only capture 33.9% of the variance. 
+In a PCA, each component has an eigenvector and an eigenvalue associated. The eigenvalue of each component explains how spread the data is, so it is equal to the variance of the principal component. The following function provides the eigenvalues and the proportion of variance explained for each principal component: 
+```{r}
+library("factoextra")
+eig.value<-get_eigenvalue(pcdata)
+eig.value[1:13,]
+
+```
+
+The eigenvalue of the first principal component is 12.59, and as it is larger than 1, it indicates that the PC1 accounts for as much variation as almost 13 original variables.
+Then, the proportion of variance explained is obtaining by dividing the variance (eigenvalue) by the total variance. In our case, the % of variance explained by PC1 = 100 x 12.59/50, which is equal to 25.19% (as the summary provided above and this table indicate).
+The second eigenvalue obtained is also a value above 1 (concretely 4.38), which it indicates that the PC2 accounts for as much variation as 5 original variables.
+The first 13 principal components have an eigenvalue greater than 1, and this 13 components explain 71.77% of the variability of our data. 
+
+A way to visualize the variability explained by each principal component is to perform an Scree Plot. This graphic representation plots the proportion of variance from largest to the smallest. 
+
+```{r}
+fviz_eig(pcdata, addlabels = TRUE, ylim = c(0, 30), barfill = 'lightcoral', barcolor = 'lightcoral',linecolor = 'darkred')+theme_minimal() + labs(title = 'Figure 14. Scree plot. Variance explained plot.', x='Principal Components')
+```
+
+The information we get from this plot is that the first three PC are the most important ones and that we might stop at the third PC, in which the cumulative variance is around 40%. This means that 40% of the information (variances, genes) contained in the data set are retained by the first three PC.
+
+
+**Which are the 10 genes that most contribute to PC1 and PC2? ** 
+
+The following function provides the contributions (in percentage) of each variable to each PC. The 10 genes that are more correlated with PC1 and PC2 will be the most important in explaining the variability in our data. The other genes that do not correlate or are less correlated with any principal component (or even those genes that are correlated with the last PC), will provide a very low contribution.
+In the following tables and figures, we can see the names of the genes that most contribute to the PC1 and PC2, respectively, and its percentatge. 
+```{r}
+#Principal component 1
+var<-get_pca_var(pcdata)
+top10_PC1<-var$contrib[order(var$contrib[,1],decreasing = T)[1:10],]#order the 10 top genes that most contribute to PC1
+top10_PC1<-as.matrix(top10_PC1[,1])
+colnames(top10_PC1)<-'PC1'
+
+kable(top10_PC1, caption = ' Table 8. Top 10 genes contributing to PC1 and its percentatge')%>%kable_classic(full_width = F, html_font = "Cambria")
+
+fviz_contrib(pcdata, choice = "var", axes = 1, top = 10,title='Figure 15. Contribution genes to PC1')
+
+
+```
+
+The red dashed line that can be appreciated in the graphic indicates the expected average contribution.
+In our case, the 10 top genes that most contribute are all above this cutoff, which means that this genes are considered important in contributing to the component. 
+For the PC1 the top gene that most contribute is RTN4RL1 with a 5.58%, followed by the NUSAP1 with a 4.98%, and so on...
+
+```{r}
+#Principal component 2
+
+top10_PC2<-var$contrib[order(var$contrib[,2],decreasing = T)[1:10],]#order the 10 top genes that most contribute to PC2
+top10_PC2<-as.matrix(top10_PC2[,2])
+colnames(top10_PC2)<-'PC2'
+
+kable(top10_PC2, caption = ' Table 9. Top 10 genes contributing to PC2 and its percentatge')%>%kable_classic(full_width = F, html_font = "Cambria")
+
+fviz_contrib(pcdata, choice = "var", axes = 2, top = 10,title='Figure 16. Contribution genes to PC2')
+```
+
+Regarding the PC2, SLC2A3 is clearly the gene that most contribute (with an 11.25%), followed by RUNDC1 with 10.8%.
+
+**Check, using concentration ellipses, whether PCA projections of individuals are associated to infection, gender, hospitalization or ancestry**
+
+Now,it is checked whether the PCA projection of individuals is related to each of the characteristics of the patient by adding concentration ellipses. The next figure captures the four ellipses created to study each of them.
+```{r}
+#Infection
+p1<-fviz_pca_ind(pcdata,
+             geom.ind = "point", 
+             col.ind = viraldata$infection, # color by groups
+             palette = c('yellowgreen','seagreen'),
+             addEllipses = TRUE, 
+             legend.title = "Infection", subtitle='Individuals - Infection',title='Figure 17. PCA ELLIPSES')
+
+#Gender
+p2<-fviz_pca_ind(pcdata,
+             geom.ind = "point", 
+             col.ind = viraldata$gender, # color by groups
+             palette = c('mediumorchid','orange'),
+             addEllipses = TRUE, 
+             legend.title = "Gender", subtitle='Individuals - Gender',title=' ')
+
+#Hospitalization
+p3<-fviz_pca_ind(pcdata,
+             geom.ind = "point", 
+             col.ind = viraldata$hosp, # color by groups
+             palette = c('turquoise','darkblue'),
+             addEllipses = TRUE, 
+             legend.title = "Hospitalization", subtitle='Individuals - Hospitalization',title=' ')
+
+#Ancestry
+p4<-fviz_pca_ind(pcdata,
+             geom.ind = "point", 
+             col.ind = viraldata$ancestry, # color by groups
+             palette = c("#00AFBB", "#E7B800", "#FC4E07"),
+             addEllipses = TRUE, 
+             legend.title = "Ancestry", subtitle='Individuals - Ancestry',title=' ')
+
+ggarrange(ncol=2,nrow=2,p1,p2,p3,p4)
+```
+
+It is clearly seen that the all the ellipses overlap each other, which implies the same gene expression profiles between each condition of every studied characteristics. So, there is no differences in the gene expression between a viral and bacterial infection, female and male, hospitalization and non requiring hospitalization, and ancestry class (A,B and C).
+Therefore, that means there is no association between the kind of infection/ancestry/gender/hospitalization and PCA projections according to gene expression profiles.
+
+
+# 6. Nice heatmap
+
+**Perform a nice heatmap with dendrograms for genes and individuals, individuals divided in two groups according to k-means (k=2), and annotations for infection and hospitalization.**
+
+```{r}
+library(ComplexHeatmap)
+library(circlize)
+library(dendextend)
+
+genes<-viraldata[,8:57] #get gene expression values
+genes_scaled<-scale(genes)
+
+
+row_dend = as.dendrogram(hclust(dist(genes_scaled)))
+
+row_dend = color_branches(row_dend, k = 2, col = c('blue','red'))
+
+
+mycols <- colorRamp2(breaks = c(-4, 0, 4),
+                     colors = c("limegreen", "white", "red"))
+
+library(gridtext)
+Heatmap(genes_scaled,
+        name = 'gene expression',
+        column_title = gt_render("Figure 18. Heatmap </span><br> </span><br> Genes"),
+        row_title = 'individuals',
+        cluster_rows = row_dend,
+        row_split=2,
+        column_names_gp = gpar(fontsize = 10),
+        col=mycols)+Heatmap(viraldata$infection, name = "infection", width = unit(5, "mm"), col=c('orange','darkred'))+ 
+  Heatmap(viraldata$hosp, name = "hospitalization", width = unit(5, "mm"), col=c('turquoise1','darkblue'))
+```
+
+The cluster colored by red seems to be quite associated to viral infection, and it is characterized by a high gene expression levels of the gens on the left and in the middle, and a low expression levels of the genes in the right. On the other hand, it cannot be concluded that the cluster colored by blue is associated to one kind of infection (neither bacterial nor viral infection). This cluster is characterized by a low expression levels of the genes on the left and middle, and a high expression of the genes in the right.
+
+Regarding the hospitalization status, it seems that there is no relation with the clusters. Both of them have approximately a similar amount of individuals that have been hospitalized and the ones that haven't.
+So, hospitalization can't be associated to the clusters (See section 4 for statistical results).
+
+
+
+
+# 7. Mean expression test between infections
+
+**Test if the mean expression levels of the first gene are different between viral and bacterial infections.**
+
+In the following table, the gene expression mean between the 2 infection groups for the first gene can be observed. So, we want to know if there are significant differences between them, or if can be considered equal.
+```{r}
+#Libraries needed
+library(dplyr)
+library(kableExtra)
+
+firstgene<-viraldata %>% select(1, 8)#Select the type of infection (column 1) and the first gene expression levels (column 8)
+mean_inf<-tapply(firstgene$AYTL2,firstgene$infection,mean)#compute the mean of the expression levels for each type of infection
+data<-t(data.frame(mean_inf))
+rownames(data)<-'Mean'
+kable(data, caption = 'Table 10. Gene expression mean')%>%kable_classic(full_width=F,position='left')%>%row_spec(0, background = 'gainsboro')
+```
+
+In order to know which is the most appropriate test for assessing the means, first, the normality assumption of the data is tested with the Shapiro test. 2 Hypothesis: 
+
+- H0: Data follow a normal distribution
+
+- H1: Data do not follow a normal distribution
+
+```{r}
+shapiro.test(firstgene$AYTL2)
+```
+P-value < 0.05. The H0 hypothesis is rejected (as we have enough evidences) and the H1 is considered to be proved. This means that data do not follow a normal distribution, and the test for the equality of 2 means that will be performed, is the **Wilcoxon test** (also known as Wilcoxon–Mann–Whitney test).
+
+- H0: mean expression of viral infected patients = mean expression of bacterial infected patients
+
+- H1: mean expression of viral infected patients is different from the mean expression of bacterial infected patients.
+
+```{r}
+wilcox.test(firstgene$AYTL2~firstgene$infection)
+```
+As the p-value is less than 0.05, then there are statistically evidences to reject the null hypothesis (H0) and thus, the alternative hypothesis (H1) is considered to be proved. So, our results provide support for the hypothesis that there are significant differences between the mean expression of viral and bacterial infections, but it does not prove that this hypothesis is 100% certain (as there is still a slight probability, less than 5%, that the results occurred by chance and the null hypothesis was correct).
+
+This boxplot visually helps to see the summary of the gene expression between the two groups. The p-value is added.
+```{r}
+library(ggpubr)
+ggboxplot(firstgene, x='infection',y='AYTL2', legend='right', font.legend=12, title = 'Figure 19. Boxplot of gene expression - infection', 
+          fill='infection', palette = get_palette(palette = 'Blues',2))+stat_compare_means(label.y=0.5,label.x = 1.3)
+```
+
+# 8. Mean expression test between ancestry
+
+**Test if the mean expression levels of the first gene are different among ancestry groups.**
+
+In the following table, the gene expression mean between the 3 types of ancestry groups, for the first gene, can be observed. So, we want to know if there are significant differences between the mean of them, or if can be considered equal.
+```{r}
+firstgene_ancestry<-viraldata[,7:8]#Select the type of ancestry (column 7) and the first gene expression levels (column 8)
+data16<-data.frame(round(tapply(firstgene_ancestry$AYTL2,firstgene_ancestry$ancestry,mean),5))#compute the mean of the expression levels for each type of ancestry, and round it to five decimals.
+colnames(data16)<-'Mean'
+
+kable(t(data16),  caption = "<span style='font-size:16px'> Table 11. Gene expression mean by ancestry</span>") %>%kable_classic(full_width=F,position='left')%>%row_spec(0, background = 'gainsboro')
+```
+
+The mean of the gene expression levels will be tested for their equality.
+
+As the data is only focused on the first gene (the same used in the previously exercise), there is no need to test the normal distribution again, we already know that the data do not follow a normal distribution. For testing more than 2 means, it is performed the **Kruskal-Wallis test**. Hypothesis:
+
+- H0: all means of ancestry groups are equal. Mean A = mean B = mean C
+
+- H1: at least one of the means is different. 
+
+```{r}
+kruskal.test(firstgene_ancestry$AYTL2~firstgene_ancestry$ancestry)
+```
+
+The test provides a p-value greater than 0.05. We don't have enough statistical evidences against the null hypothesis (H0), so we fail to reject it. Therefore,it does not prove that H0 is true and the experiment is inconclusive.
+
+Here there is a boxplot to visually see the summary of gene expression between the 3 ancestry groups. There is the general p-value, and then the p-value for each comparing group.
+```{r}
+my_comparisons <- list( c("A", "B"), c("B", "C"), c("A", "C") )
+ggboxplot(firstgene_ancestry, x='ancestry',y='AYTL2', legend.title = 'Ancestry group', legend='right',font.legend=12, fill='ancestry', title='Figure 20. Boxpolot gene expression-Ancestry',palette = c('#7FFFD4','#ADFF2F','#32CD32'))+stat_compare_means(comparisons = my_comparisons)+ stat_compare_means(label.y = 0.9,label.x = 1.7)
+```
+
+# 9. Mean expression test paired
+
+**Test whether mean expression levels of the first and second genes are equal for viral infections.**
+
+The following table describes the gene expression mean for the first 2 genes, and only for those viral infected classified patients.
+
+```{r}
+library(tidyr)
+first_second_gene<-viraldata%>% filter(., infection == 'viral infection')%>%  select(8,9)#select patients of viral infection and their gene expression for the first and second genes.
+data_9<-data.frame(round(apply(first_second_gene,2,mean),4)) #see the means
+colnames(data_9)<-'Gene expression mean'
+
+kable(t(data_9), caption = 'Table 12. Mean expression levels')%>%kable_classic(full_width=F,position='left')%>%row_spec(0, background = 'gainsboro')
+```
+So, for this section, the data frame only contains information regarding the viral infected patients. As the sample size has changed, it is important to check again if the data is normally distributed or not, doing a **Shapiro test**. 
+
+- H0: Data follow a normal distribution.
+
+- H1: Data do not follow a normal distribution.
+
+```{r}
+shapiro.test(first_second_gene$AYTL2)
+shapiro.test(first_second_gene$TGFB3)
+```
+
+
+Both p-values are greater than 0.05. There are not enough statistical differences to reject H0. Therefore, data follow a normal distribution. 
+Then it is proceeded to perform a **T-test for paired data** (as we want to compare expression levels of two genes for the same patients).
+
+- H0: mean expression of gene AYTL2 is equal to the mean expression of gene TGFB3 for viral infections.
+
+- H1: means are different between AYTL2 and TGFB3 for viral infections.
+
+```{r}
+d<-first_second_gene$AYTL2-first_second_gene$TGFB3
+t.test(d,mu=0)
+```
+P-value is less than 0.05. There are statistical evidences to reject the null hypothesis and consequently to prove the alternative hypothesis, which conclude that gene expression means in viral infected patients are different between AYTL2 and TGFB3 genes. 
+
+```{r}
+library(tidyr)
+a<-pivot_longer(first_second_gene, AYTL2:TGFB3)
+ggboxplot(a, x='name',y='value',legend.title='Gene', legend='right', font.legend=12, xlab='Gene', ylab='Expression',
+          fill='name',palette=c('#FF7F50','#D53E4F'),title='Figure 21.Boxplot of first gene - Viral infected patients' ) + stat_compare_means(method='t.test',paired = T,label.x = 1.3)
+```
+
+
+# 10. Nonparametric test
+
+**Perform a nonparametric test for association of the kind of infection (viral or bacterial) and the risk of hospitalization.**
+**Provide the OR of the risk of hospitalization for viral vs bacterial infections.**
+
+First of all, a table of frequencies is created:
+```{r}
+data_10<-table(viraldata$infection,viraldata$hosp)
+kable(data_10, caption = 'Table 13. Frequencies of the type of infection - hospitalization.')%>% kable_classic(full_width = F)%>%row_spec(0, background = 'gainsboro')
+```
+
+To visually represent the contingency table, it can be drawn a <span style="color:blue"> mosaic plot</span>:
+
+```{r}
+library(ggmosaic)
+ggplot(data = viraldata) +
+  geom_mosaic(aes(x = product(infection), fill=hosp)) +
+  theme_bw()+xlab('Infection')+ylab('Hospitalization')+theme(legend.position = 'none')+ggtitle('Figure 22. Mosaic Plot of type of infection and hospitalization')
+```
+
+Thanks to this plot, it is clearly seen that there is a similar proportion of bacterial and viral infected patients depending if they require hospitalization or not. So, there is not a major proportion of bacterial infected patients that have required hospitalization versus those that haven't, for example. This is a hint to determine that it doesn't matter the infection of the patient to be hospitalized or not, so it seems there is no relation between the infection and the hospitalization status. 
+
+
+**Fisher's Exact Test:**
+
+- H0: Infection and hospitalization are independent variables.
+
+- H1: Infection and hospitalization are related variables.
+
+
+```{r}
+fisher.test(data_10)
+```
+The p-value obtained from the Fisher's test is 0.3093. As it is greater than 0.05, there are not enough statistical evidences to reject the null hypothesis, so it seems there is no association between the kind of infection and the risk of being hospitalized.
+Moreover, this test provides us the odds ratio, that turns out to be 0.6699788.
+That means that the odds of being hospitalized for a bacterial infected patient is 0.6699 times the odds that a viral infected patient is hospitalized. In other words, the odds that a bacterial infected patient is hospitalized are lowered by about 33%. Furthermore, the 95% confidence interval for the odds ratio is:[0.32, 1.37]. Since it contains the odds ratio value of 1, then the calculated odds ratio is not considered statistically significant, because it means that the expected true odds ratio can be below or above 1, so it is uncertain if being infected with bacterial or viral, increases or decreases the odds of requiring hospitalization.  
+
+As the p-value was greater than 0.05,it can be concluded that the true odds ratio is equal to 1, which means that the odds of being hospitalized for a bacterial and a viral infection are exact the same, or similar to, hence the affirmation that infection **IS NOT** associated with hospitalization.
+
+
+# 11. Normality test
+
+**Test the normality of expression levels of the 50 genes (use function apply). How many genes are not normally distributed and which are their names?**
+
+**Shapiro-Wilk normality test**: 
+
+For each gene, 2 hypothesis are made: 
+
+- H0: Data follow a normal distribution.
+
+- H1: Data do not follow a normal distribution.
+
+Once the Shapiro.test function is applied to each of all 50 genes, only those genes whose p-value is less than 0.05 are selected. This means we are filtering those genes that do not follow a normal distribution.
+```{r}
+genes<-viraldata[,8:57]
+test<-apply(genes,2,function(x) shapiro.test(x)$p.value)
+sum(test<0.05)
+
+```
+19 genes are not normally distributed, and its name can be observed in table 14.
+
+```{r}
+p_valeminor<-data.frame(test[which(test<0.05)])# select those 19 genes that do not follow a normal distribution and its p-value
+notnormal_genes<-data.frame(rownames(p_valeminor))#get the rownames as it corresponds to the gene name
+colnames(notnormal_genes)<-'Gene name'
+kable(notnormal_genes, caption = 'Table 14. Gene names that do not follow a normal distribution')%>%kable_styling(bootstrap_options = c("striped", "hover", "condensed",'bordered'),full_width = F)%>%row_spec(0,2, background = 'lightskyblue')%>%scroll_box(height = "350px")
+```
+
+
+# 12. Differentially expressed genes
+
+**Identify those genes that are differentially expressed between viral and bacterial infections (use function apply). Create a function that checks whether the gene expression levels are normally distributed or not and, accordingly, applies the most appropriate test for comparing gene expression levels between viral and bacterial infections. Adjust the p-values for multiple testing according to an fdr threshold equal to 0.1. Interpret the results.**
+
+To create this function, the steps described next are performed:
+
+1. Shapiro test.
+
+  1.1 If data Do NOT follow a normal distribution, the Wilcoxon test will be applied. 
+
+   -If the Wilcoxon test p-value is less than 0.05, the gene will be differentially expressed between viral and bacterial infections. 
+
+   -If The wilcoxon test p-value is greater than 0.05, the gene will not be differentially expressed.
+
+  1.2. If data FOLLOWS a normal distribution, the t-test will be applied. Before that, the equality of 2 variances test has to be performed.
+
+   1.2.1. If the F test p-value for equality of variances is less than 0.05, the variances between viral and bacterial patients are different. However, if the p-value is    greater than 0.05, the variances between viral and bacterial patients are considered equal.
+
+   1.2.2. Now we can apply the t test, specifying whether the variances are equal or not.
+
+   -If the p-value of the t test is less than 0.05, the means of the viral and bacterial patients are different, so the gene is differentially expressed between them. 
+
+   -If the p-value of the t test is greater than 0.05, the gene is not differentially expressed between viral and bacterial patients. 
+
+```{r}
+deg<-function(x){
+  if (shapiro.test(x)$p.value<0.05){
+    wilcox.test(x~viraldata$infection)$p.value
+  }
+  else{
+    if (var.test(x~viraldata$infection)$p.value<0.05){
+      t.test(x~viraldata$infection,var.equal=F)$p.value
+    }
+    else{
+      t.test(x~viraldata$infection,var.equal=T)$p.value
+    }
+  }
+}
+
+pvalues<-apply(genes, 2, deg)
+sum(pvalues<0.05)
+```
+
+If multiple testing correction is not applied, we obtained 30 significant results (of 50 tests performed). This is a large amount of results.
+As we are performing multiple tests, it is very important to correct the p-value of each individual test to reduce the number of false positive findings (significant results occurred by change). In this case, we are using the false discovery rate (FDR) method, with a threshold of 0.1.
+```{r}
+adjusted_pvalues<-p.adjust(pvalues, method = "fdr", n = length(pvalues))
+sum(adjusted_pvalues<0.1)
+data_pvaladj<-data.frame(adjusted_pvalues[which(adjusted_pvalues<0.1)])
+rownames(data_pvaladj)
+```
+
+After applying Benjamini & Hochberg multiple testing correction, it is noticed that the number of significant results has increased. This is because when testing the genes to determine if they are differentially significant, we use a p-value threshold of 0.05, and when applying the FDR method we use a threshold of 0.1. 
+In this case, we should proceed to lower the FDR threshold to 0.05, or increase the p-value to 0.1. As we have have obtained a large amount of significant results with the p-value of 0.05, we want to be more stringent (that's why we do not set the p-value to 0.1), and we can decide to lower the FDR threshold to 0.05. 
+
+```{r}
+adjusted_pvalues<-p.adjust(pvalues, method = "fdr", n = length(pvalues))
+sum(adjusted_pvalues<0.05)
+data_pvaladj<-data.frame(adjusted_pvalues[which(adjusted_pvalues<0.05)])
+rownames(data_pvaladj)
+```
+
+Now, we have obtained 25 genes, so we have removed 5 false positive genes. If we set the p-value threshold to 0.1, we would have obtained more significant results. 
+
+This are the names of the differentially expressed genes between viral and bacterial infections:
+```{r}
+difgenes<-data.frame(rownames(data_pvaladj))
+colnames(difgenes)<-'Gene name'
+kable(difgenes, caption = 'Table 15. Gene names')%>%kable_styling(bootstrap_options = c("striped", "hover", "condensed",'bordered'),full_width = F)%>%row_spec(0,2, background = 'lightskyblue')%>%scroll_box(height = "450px")
+```
+
+
+
+# 13. Regression model
+
+**13. Consider a regression model for the kind of infection as a function of gender, age and ancestry and the first 10 genes (scaled). Use stepwise variable selection and denote the selected model as “best.model”. Interpret the obtained model. **
+
+As we want to predict the outcome of the kind of infection, which is a dichotomous variable (two possible values: viral or bacterial), we have to construct a logistic regression model, by applying the function *glm()* and specifying the option family = binomial (which tells that we want to fit a logistic model).
+
+To describe the logistic regression model, the Y will be the indicator of the infection (Y=1 as viral, Y=0 bacterial).
+```{r}
+contrasts(viraldata$infection)
+```
+
+We are interested in predicting the expected value of Y, that is the probability of having a viral infection (Y=1), as a function of the gender, age, ancestry, and the first 10 genes. The following code builds the model.
+
+```{r}
+# --- Fit the model ---
+model1<-glm(viraldata$infection~viraldata$gender+viraldata$age+viraldata$ancestry+genes_scaled[,'AYTL2']+genes_scaled[,'TGFB3']+genes_scaled[,'GMPS']+genes_scaled[,'CDC42BPA']+genes_scaled[,'ORC6L']+genes_scaled[,'KNTC2']+genes_scaled[,'SERF1A']+genes_scaled[,'OXCT1']+genes_scaled[,'TSPYL5']+genes_scaled[,'RTN4RL1'], family = binomial())
+
+# --- Summarize the model ---
+summary(model1)
+```
+It is seen that the statistically significant variables associated to the outcome are: gene OXCT1 (with the lower p-value), gene RTN4RL1, and gene TGFB3. 
+This results suggest that the gene OXCT1 is the one with the strongest association with the probability of having a viral infection, followed by RTN4RL1 and TGFB3. The regression coefficient of OXCT1 is 0.63371. By taking the exponent of the estimation coefficient, we get the odds-ratio:
+```{r,message=FALSE}
+exp(summary(model1)$coefficients)[13,1]
+exp(confint(model1))[13,] #OXCT1
+```
+This indicates that increasing one unit of the expression of the OXCT1 gene, increases 1.88 times the odds of having a viral infection. Moreover, we construct a 95% confidence interval for the estimated model coefficient. The interval is positive and above 1, which confirms our hypothesis that the presence of the gene OXCT1 increases the probability of having a viral infection. 
+
+From the logistic summary results, one can notice that some variables, as the gender, age, some genes... seem to be not statistically significant, and if we keep them in the model they may contribute to overfitting. So, this variables should be removed, using the stepwise variable selection method. There are three strategies (forward,backward, or both), and we will use the backward selection, which starts with all the variables in the model, and remove those that are less important, untill the model has all the variables that are statistically significant. 
+
+
+```{r}
+backward<-step(model1,direction = 'backward')
+summary(backward)
+```
+
+As it is seen, before applying the backward selection model, we obtained an AIC (measure foe evaluating how well a model fits the data) of 178,71. In this case, the method applies several steps to reach the final model, with the lowest AIC, that is 269,29. This model includes 5 variables: gender and genes TGFB3,OXCT1, CDC42BPA and RTN4RL1.
+
+So, the best model turns out to be: 
+```{r}
+backward$coefficients
+formula(backward)
+```
+Type of infection ~ -0.4558609 + 0.738 x viraldata$gender + 0.35995 x gene_TGFB3 + 0.412 x gene_CDC42BPA + 0.6133 x gene_OXCT1 +  0.833 x gene_RTN4RL1
+
+Now, we can analyse the odds ratio obtained from the best model: 
+```{r}
+exp(backward$coefficients)
+```
+
+**Gender**: The odds ratio is 2,09. That means that being a male increases 2 times the risk of having a viral infection compared to being a woman. 
+
+**TGFB3**: The odds ratio is 1,43. That means that increasing 1 unit the expression of this gene, increases 1.43 times the risk of having viral infection. 
+
+**CDC42BPA**: The odds ratio is 1,51. That means that increasing 1 unit the expression of this gene, increases 1.51 times the risk of having viral infection. 
+
+**OXCT1**: The odds ratio is 1,84. That means that increasing 1 unit the expression of this gene, increases almost 2 times the risk of having viral infection. 
+
+**RTN4RL1**: The odds ratio is 2,3. That means that increasing 1 unit the expression of this gene, increases more than 2 times the risk of having viral infection. 
+
+
+Now, we can denote this model as the best: 
+```{r}
+best.model<-backward
+summary(best.model)
+```
+
+
+# 14. Best model classification ability
+
+**Analyze the classification ability of “best.model” (ROC curve and AUC) according to the following schemes:**
+
+
+## 14.1 Best model validation
+
+**Apparent validation of “best.model” using the same data that was used for model building.**
+
+In this section, we are measuring the predictive accuracy using an apparent validation method. This consists of measuring the accuracy on the same data that was used to build the model, which leads to a biased and overestimated prediction accuracy of the model, as all the data is used to build the model and to test it.
+
+To assess the classification and prediction accuracy of the best model, it will be provided the ROC curve and the AUC.
+
+The ROC curve is the curve created when plotting the true positives versus the false positives for the different thresholds considered, and which provides a graphical representation of the classification accuracy of a model. Remember that true positives ratio is known as sensitivity, and the false positives are know as 1 - specificity. A perfect curve is expected to have a very small proportion of false positives, and a very high true positives proportion. So, the closer the ROC curve to 1, the better will be the model.
+The numerical summary of the ROC curve is given by the AUC (Area Under the Curve), that tells how much the model is capable of distinguishing the different conditions based on the Risk score. In this case, to distinguish from patients having a viral infection and bacterial infection. Again, closer to 1 the AUC, the better the model is at making predictions, while AUC bear 0.05 corresponds to very poor classification accuracy of the model. 
+
+Next, we will analyse the classification ability of the best model, by using the ROCR package:
+```{r}
+library(ROCR)
+
+#one of the possible objects of the model, is the linear.predictors (same as risk score)
+lp<-best.model$linear.predictors
+
+pred<-prediction(lp,viraldata$infection)#Prediction on the type of infection based on the risk score
+perf<-performance(pred,'tpr','fpr')#Measure the performance of the predictions
+
+# --- Plot the ROC curve ---
+plot(perf)
+abline(a=0,b=1)
+title("Figure 23. ROC curve for the best model")
+
+
+```
+
+Graphically, we can see that this model has not an excellent classification ability, as the ROC curve is not very close to 1. Nevertheless, it is above the diagonal.
+
+Calculate the AUC:
+```{r}
+# --- AUC ---
+auc<-slot(performance(pred,"auc"), "y.values")[[1]]
+auc
+```
+We obtained an AUC of 0.778, which means the model is not perfect, and will make some wrong predictions when trying to classify the patients depending on their type of infections. 
+
+
+## 14.2 Best model cross-validation
+
+**Cross-validation with k=5 for 'best.model'.**
+
+To ideally validate the model, it should be performed an external validation, using an external data set. As in this case we don't dispose of external data, we can perform a cross-validation, which is a type of internal validation (based on splitting the data into training and testing samples).
+
+The cross-validation is a resampling method very used when the data set is small. It divides the data into 'K' pieces (number of groups that the data set is going to be split into), and every time we do an experiment, only one subsample out of this 'k' pieces is used to validate the data (test), the rest of subsamples are used as training data to build the model. This process is repeated for each of the k pieces, and finally the results are summarized by averaging the performance of the test. 
+
+By doing this, we expect to get better results than the apparent validation used previously.  
+
+```{r}
+# --- Assing each individual to a random fold --- 
+set.seed(123) #to reproduce the results
+
+k<-5 #Number of folds to split the data
+n<-nrow(viraldata) #Number of individuals
+fold<-sample(as.numeric(cut((1:n),breaks = k))) #Random assignment of each individual to one fold
+
+# --- Cross-validation loop ---
+pred <- NULL # vector of predictions
+for(i in 1:k){
+  indTest <- which(fold==i)   # Test indices 
+  indTrain <- which(fold!=i)  # Train indices
+  model.i <- glm(formula = viraldata$infection ~ viraldata$gender + genes_scaled[,"TGFB3"] + genes_scaled[,"CDC42BPA"] + genes_scaled[,"OXCT1"] + genes_scaled[,"RTN4RL1"], family = binomial(), data=viraldata[indTrain,]) # Adjust the model with training data
+  pred.i <- predict(model.i, newdata=viraldata[indTest, ])   # Predicts test data at step i
+  pred[indTest] <- pred.i   # Store predicted values for test data at step i 
+}  
+
+# --- ROC curve ---
+prediction <- prediction(pred, viraldata$infection) 
+perf <- performance(prediction, "tpr", "fpr" )
+plot(perf)
+abline(a=0, b= 1)
+title("Figure 24. ROC curve using cross-validation")
+
+# --- AUC ---
+auc<-slot(performance(prediction,"auc"), "y.values")[[1]]
+auc
+
+```
+
+By performing a cross-validation, we get that the AUC is equal to 0.55, which means that the model is not good at making predictions to classify the viral and bacterial patients. This method is not getting better results than the apparent classification, as it is still over estimating the real classification. This fact will be discussed next. 
+
+## 14.3 best model discusioin
+
+**c. Though the cv-classification is better than the apparent classification, it still is over-estimating the real classification of "best-model". Discuss why and how to obtain a more accurate classification estimation (slides 262:264).**
+
+In order to obtain a more accurate classification estimation, it should be performed a bootstrap validation. This technique, that is based on resampling with replacement, randomly selects some observations (and can be taken repeatedly) for an experiment, and the other observations form the original sample that haven't been considered within the first experiment, are the ones that will be used for testing the accuracy of the model.
+So the correct process for validation of a model would be the following: 
+- First of all, the complete dataset is divided into two data sets. The training set and the test set. 
+- Within the training data we select the variables and then the model is built. 
+- Now, the test set of data is pure, it means it has not been used before for the variable selection and we can validate the model with this testing data. 
+
+So, the point is that if we use the data to select the variables we cannot use the data again for the test validation, we have to validate the model in new samples. 
+
+
+
+# 15. Variable selection with LASSO
+
+**Consider a regression model for the kind of infection as a function of all 50 genes (scaled) and adjusted by age. Perform variable selection with LASSO and interpret the results.**
+
+As we want to consider a regression model with not only the first 10 genes, but all 50 and age, we have a very large number of covariates, and the aim of this part is to remove those that are not important, not associated with the kind of infection. 
+
+Now, the method used for variable selection will be LASSO, which tries to minimize the residual sum of squares of the coefficients without exceeding an specific value t, and with a penalty term (lambda). As lambda increases, the penalization is stronger, and some of the coefficients are reduced to 0, which means that the variable is eliminated from the model. It is important to know which is the optimal value for lambda or the number of variables related to the model. The selection of this parameter is perform with cross-validation. 
+
+
+Function *glmnet()* performs generalized linear model via penalized maximum likelihood. With alpha=1 the method performs LASSO penalization, for alpha=0 ridge penalization, and for alpha between 0 and 1, elastic-net penalization:
+```{r,message=FALSE}
+library(glmnet)
+
+#Select age
+age<-viraldata[,6]
+
+#Join the age plus all the genes scaled
+genes_age<-cbind(age,genes_scaled)
+x<-genes_age
+
+#Select the type of infection
+y<-viraldata[,1]
+
+mlasso <- glmnet(x, y, standardize=TRUE, alpha=1,family='binomial')
+plot(mlasso)
+title("Figure 24. LASSO pathway")
+```
+
+In this plot it is shown the LASSO pathway. The numbers in the top of the plot indicate the number of variables that are removed from the model, and the L1 Norm corresponds to the value of lambda. If lambda is equal to 0, it means that no penalization is applied and all the variables remain in the model. However, as lambda increases, the coefficients are getting smaller, the larger is the penalization, and less variables remain in the model. 
+
+The function *cv.lasso()* provides two possible optimal values for lambda: the lambda.min (minimum MSE), and lambda.1se (1 standard error of the minimum MSE).
+```{r,warning=FALSE}
+# --- Cross-validation ---
+set.seed(1)
+cv.lasso <- cv.glmnet(x, y, standardize=TRUE,family='binomial') 
+plot(cv.lasso)
+title("Figure 25. Values for lambda")
+```
+
+This plot shows the GLM deviance variation depending on the logarithm of lambda. It is preferable the GLM deviance to be as small as possible. A selection for lambda would be to take the lambda that corresponds to the minimum MSE value, which in this case is 0.0432, and it is contains many variables. To penalize a little bit more the total sum of coefficients and to remove even more variables, we have to take the lambda that corresponds to the one standard error (1se MSE), which is 0,091.
+
+```{r}
+#Lambda.min
+print(paste(cv.lasso$lambda.min,log(cv.lasso$lambda.min)))
+coef(mlasso, s=cv.lasso$lambda.min)
+
+
+#Lambda.1se
+print(paste(cv.lasso$lambda.1se,log(cv.lasso$lambda.1se)))
+coef(mlasso, s=cv.lasso$lambda.1se)
+```
+
+
+In this case, the lambda.1se is preferable, since it identifies the best subset of genes that are associated with the type of infection. This genes are Contig35251_RC, QSCN6L1, MELK and SCUBE2. 
+
+
+
+# 16. Kaplan-Meier survival curve
+
+**Obtain Kaplan-Meier survival curves for the time of symptoms as a function of the kind of infection and test for the significance of the difference in duration of symptoms. Discuss the results.**
+
+The aim of this part is to obtain a survival curve that can be used for prediction prognosis.
+
+In survival analysis the outcome of interest requires information on two variables, a time variable (in days in this case) and an indicator variable (indicator of symptoms). The indicator variables is 1 when the event of interest has occurred, in this case when the symptoms have finished, or 0 otherwise, the symptoms still remain in a given time, or when the follow-up study has finished. This two variables are specified together with the function Surv(,) and this object is used as the outcome in the analysis.
+
+
+Load the libraries needed: 
+```{r,message=FALSE}
+library(survival)
+library(KMsurv)
+```
+
+Convert infection and the indicator of symptoms variables to numeric:
+```{r}
+viraldata$sind<-as.numeric(viraldata$sind)-1
+viraldata$infection<-as.numeric(viraldata$infection)-1
+```
+
+Get the Kaplan-Meier survival curve according to the type of infection:
+```{r}
+kmbyinf<-survfit(Surv(viraldata$stime,viraldata$sind)~ viraldata$infection)
+summary(kmbyinf)
+```
+
+The infection = 0 corresponds to bacterial infection, and 1 corresponds to viral infection. 
+
+For instance, at day 11 from suffering acute diarrhea, 49% of patients with viral infection will remain with symptoms, whereas 66% of patients with bacterial infection will remain with symptoms. 
+Also note that in the survival curve, when the patient has no longer symptoms, we will see a jump (in the probability to remain with symptoms). This can be visually seen in Figure X.
+
+```{r}
+# --- PLOT ---
+plot(kmbyinf, main='Figure x',xlab='time',ylab='survival',col=2:3)
+legend('topright',col=2:3,legend=c('bacterial','viral'),lty=1)
+title("Figure 26. Kaplan-Meier curve")
+```
+
+This Figure represents the time with symptoms in the two groups of infection (viral and bacterial). The probability to remain with symptoms for those viral patients is the curve in green, and for bacterial infected patients, in red, which is above the viral infection curve. That means that the individuals suffering from a viral infection spend less time with symptoms, and the patients with bacterial infection will remain more time with symptoms. 
+
+The first days, there is no difference between bacterial and infected patients curves, both of them are similar, as all the patients have symptoms, but as days go through, there are less viral patients that remain with symptoms rather than bacterial infected patients. 
+At day 15, less than 37% of patients with viral infections still remain with symptoms, and approximately 60% of patients with bacterial infection still remain with symptoms. 
+
+To be more specific, we can test if the differences between the two curves are really significant or not. 
+
+**Test for the significance of the difference in duration of symptoms.**
+
+2 hypothesis are formulated: 
+- H0: there is no difference in the symptoms time for the 2 groups
+- H1: the 2 groups have different symptoms time distributions
+
+The most popular method to test this differences in a survival analysis, is to perform the log-rank test, which puts emphasis in larger values of time. So, the difference in the larger values of time are very important for this test.
+```{r}
+survdiff(Surv(viraldata$stime,viraldata$sind)~ viraldata$infection)
+```
+
+The p-value obtained from the test is exactly equal to 0,05. As the rules and definitions of hypothesis testing says, the p-value has to be less or EQUAL to the significance level to consider it statistically significant. Therefore, there are enough statistically evidences against the null hypothesis (H0), and the alternative hypothesis is considered to be proved. This results provide support for the hypothesis that the viral and bacterial curve have different symptoms time distributions, so if a patient is infected with a virus, their symptoms will finish earlier than a patient infected by a bacteria.
+
+
+# 17. Cox regression model
+
+**Perform a Cox regression model for duration symptoms as a function of the covariates (ignore gene expression levels). Discuss the results.**
+
+The Cox Proportinal Hazard model is a regression model used for investigating the association between the survival time of patients and one or more predictor variables. In this case, we are interesting in analyzing the association between the duration of symptoms and the covariates available in this study, which are the type of infection, age, gender, hospitalization, and ancestry type. 
+
+Convert the infection variable to factor:
+```{r}
+viraldata$infection<-factor(viraldata$infection, levels=c(0,1),labels=c('bacterial infection','viral infection'))
+```
+
+The function *coxph()*, from the survival R package, is used to compute the Cox proportional hazards regression model:
+```{r}
+coxmodel<-coxph(Surv(viraldata$stime,viraldata$sind)~viraldata$infection+viraldata$gender+viraldata$hosp+viraldata$age+viraldata$ancestry)
+summary(coxmodel)
+```
+
+Those variables that have a positive sign (type of infection and ancestry) in the regression coefficients (coef), means that the hazard (probability to finish with symptoms) is higher, and thus, the patients that suffer from a viral infection, and correspond to the ancestry group B and C will get healthy earlier than the bacterial infected patients and those with the ancestry group A. 
+
+Then, the coxph function returns the exponentiated coefficients (also known as hazard ratios). If a patient is infected by a virus, it has 2 times the probabilities to get healthy earlier than a bacterial infected patient, and being of the ancestry group B and C, increases by 3 and 4 times respectively, the odds ratio to finish with symptoms than a patient with the ancestry type A. So, the fact of finishing with symptoms for diarrhea is strongly associated with being of the ancestry group C. 
+
+The summary also gives output for the confidence intervals (95% upper and lower) of the hazard ratios. 
+
+And finally, the output gives p-values for 3 test, which all of them are significant (it means the model is significant). It also gives p-values for each covariate. The ancestry, age, and infection variables are significant, but the gender and the hospitalization requirement aren't. 
+The p-value for age is 0.0082, with a hazard ratio with a negative sing (-0.07). This means that the probability to finish with symptoms is lower as the age increases.
+
+Having fit a Cox model to the data, it’s possible to visualize the predicted survival proportion at any given point in time for a particular risk group. The function survfit() estimates the survival proportion, by default at the mean values of covariates.
+```{r,message=FALSE,warning=FALSE}
+library("survminer")
+
+# Plot the baseline survival function
+ggsurvplot(survfit(coxmodel,data=viraldata), color = "dodgerblue",ggtheme = theme_minimal())
+```
+
+We may wish to display how estimated survival depends upon the value of a covariate of interest. For instance, we want to asses the impact of the ancestry on the estimated probability to finish with symptoms: 
+
+```{r}
+coxmodel_ancestry<-coxph(Surv(viraldata$stime,viraldata$sind)~viraldata$infection+viraldata$gender+viraldata$hosp+viraldata$age+strata(viraldata$ancestry))
+fit<-survfit(coxmodel_ancestry,data=viraldata)
+ggsurvplot(fit, conf.int = FALSE, legend.labs=c("A", "B","C"),
+           ggtheme = theme_minimal())
+```
+
+It is clearly seen that being of type B and C is associated with higher probabilities to finish with the symptoms earlier than the type A, as at day 13 or 14 approximately only 15% of the patients remain with symptoms, the rest have finished with symptoms. 
+
+
+
+
+
+
+
+
+
+
